@@ -6,18 +6,20 @@
 /// <reference path="../typings/lodash/lodash.d.ts" />
 /// <reference path="../typings/jquery/jquery.d.ts" />
 /// <reference path="../typings/autobahn/autobahn.d.ts" />
+/// <reference path="../typings/basil.js.d.ts" />
 
 /// <reference path="common.ts" />
 /// <reference path="events.ts" />
 
 namespace Appkit {
 
-	interface AppkitOptions {
-		clients: Dictionary;
-
+	export interface AppkitOptions {
 		apiHost: string;
 		apiUseSsl: boolean;
 		apiPrefix: string;
+
+		clients: Dictionary;
+		storage: basil.BasilOptions;
 	}
 
 	interface SerializerMap {
@@ -25,8 +27,9 @@ namespace Appkit {
 	}
 
 	export class Appkit implements EventHandler {
-		private _options: AppkitOptions;
 		private _serializers: SerializerMap;
+		private _options: AppkitOptions;
+		private _storage: basil.Basil;
 		private _client: Client;
 		private _session: Session;
 
@@ -35,10 +38,13 @@ namespace Appkit {
 				jsonapi: new JsonApiSerializer(),
 			};
 
-			this.initOptions(options);
-			this.buildSession();
-			this.buildClient();
-			this._client.connect();
+			this._initOptions(options);
+			this._initStorage();
+			this._buildSession();
+			this._buildClient();
+			this._client.connect().then(() => {
+				this._restoreSession();
+			});
 		}
 
 		/**
@@ -52,32 +58,44 @@ namespace Appkit {
 		on: (eventName: string, callback: Callback) => void;
 		trigger: (eventName: string, ...args:any[]) => void;
 
-		initOptions(options:AppkitOptions) {
-			options = <AppkitOptions> _.defaults(options || {}, {
+		private _initOptions(options: AppkitOptions) {
+			let opts:any = _.defaults(options || {}, {
 				apiHost: "localhost:8000",
 				apiUseSsl: false,
 				apiPrefix: "/api",
 			});
 
-			options.clients = _.defaultsDeep(options.clients || {}, {
-				rest: {
-					enabled: true,
-					url: (options.apiUseSsl ? "https://" : "http://") + options.apiHost + options.apiPrefix,
+			opts = _.defaultsDeep(opts, {
+				storage: {
+					"namespace": "appkit",
+					storages: ['local', 'cookie', 'session', 'memory'],
+					expireDays: 14,
 				},
-				wamp: {
-					enabled: true,
-					url: "ws://" + options.apiHost + options.apiPrefix + "/wamp",
-				}
+
+				clients: {
+					rest: {
+						enabled: true,
+						url: (opts.apiUseSsl ? "https://" : "http://") + opts.apiHost + opts.apiPrefix,
+					},
+					wamp: {
+						enabled: true,
+						url: "ws://" + opts.apiHost + opts.apiPrefix + "/wamp",
+					},
+				},
 			});
 
-			this._options = options;
+			this._options = <AppkitOptions> opts;
 		}
 
-		buildSession() {
+		private _initStorage() {
+			this._storage = new Basil(this._options.storage);
+		}
+
+		private _buildSession() {
 			this._session = new Session();
 		}
 
-		buildClient() {
+		private _buildClient() {
 			let fallback = new FallbackClient(this._session);
 
 			let opts = this._options.clients;
@@ -97,6 +115,16 @@ namespace Appkit {
 			}
 
 			this._client = fallback;
+		}
+
+		private _restoreSession(): Promise<any> {
+			let session = this._storage.get("session");
+			if (session && session.token) {
+				console.log("Restoring session with token ", session.token);
+				return this.resumeSession(session.token);
+			}
+
+			return null;
 		}
 
 		/**
@@ -137,8 +165,7 @@ namespace Appkit {
 
 		authenticate(options: AuthOptions): Promise<any> {
 			return this.method("users.authenticate", options).then(response => {
-				this._session.updateWithResponse(this, response);
-				this.trigger("session_changed", this._session);
+				this._onSessionData(response);
 				return Promise.resolve(response);
 			});
 		}
@@ -156,18 +183,32 @@ namespace Appkit {
 				throw new Error("Can't unauthenticate when not authenticated.");
 			}
 			return this.method("users.unauthenticate", {}).then(data => {
-				this._session.clearUser();
-				this.trigger("session_changed", this._session);
+				this._onSessionData(null);
 				return Promise.resolve(data);
 			});
 		}
 
 		resumeSession(token:string): Promise<any> {
 			return this.method("users.resume_session", {token: token}).then(response => {
-				this._session.updateWithResponse(this, response);
-				this.trigger("session_changed", this._session);
+				this._onSessionData(response);
 				return Promise.resolve(response);
 			});
+		}
+
+		_onSessionData(data: any) {
+			if (data) {
+				this._session.updateWithResponse(this, data);
+			} else {
+				this._session.clearUser();
+			}
+
+			if (this._session.token) {
+				this._storage.set("session", {token: this._session.token});
+			} else {
+				this._storage.remove("session");
+			}
+
+			this.trigger("session_changed", this._session);
 		}
 
 		/**

@@ -135,7 +135,14 @@ namespace Appkit {
 			}
 
 			console.log("APPKIT: Calling autobahn method: ", name);
-			return Promise.resolve(this._autobahnSession.call(name, [], data)).get("kwargs");
+			return Promise.resolve(this._autobahnSession.call(name, [], data)).then((data:any) => {
+				data = data.kwargs;
+				if (data.errors && data.errors.length) {
+					return Promise.reject(data);
+				} else {
+					return Promise.resolve(data);
+				}
+			});
 		}
 	}
 }

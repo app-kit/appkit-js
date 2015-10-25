@@ -23,7 +23,7 @@ gulp.task('minify', function() {
 });
 
 gulp.task("dist", function(callback) {
-	runSequence("scripts", "minify", callback);
+	return runSequence("scripts", "minify", callback);
 });
 
 gulp.task('watch', ['scripts'], function() {

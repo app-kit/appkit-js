@@ -45,7 +45,9 @@ namespace Appkit {
 		updateWithResponse(appkit:Appkit, data:any) {
 			let format = data.meta && data.meta.format ? data.meta.format : null;
 
+
 			if (!format) {
+				console.log("Update session error: ", data);
 				throw new Error("Unknown data format");
 			}
 

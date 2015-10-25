@@ -1,6 +1,6 @@
 # Appkit JS
 
-Javascript client framework for the [Appkit](https://github.com/app-kit/go-appkit) application framework.
+Javascript client library for the Golang [Appkit](https://github.com/app-kit/go-appkit) application framework.
 
 ## Get Started
 

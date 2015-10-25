@@ -1,3 +1,5 @@
+/// <reference path="../../typings/reqwest.d.ts" />
+
 namespace Appkit {
 	export interface RestOptions {
 		enabled?: boolean;
@@ -48,11 +50,12 @@ namespace Appkit {
 		}
 
 		_ajax(options:any): Promise<any> {
-			options = _.assign({
+			options = <reqwest.Options> _.defaults(options || {}, {
 				method: "POST",
 				contentType: "application/json",
-				dataType: "json",
-			}, options || {});
+				type: "json",
+				headers: {},
+			});
 
 			if (!options.url) {
 				throw new Error("No url specified");
@@ -74,7 +77,7 @@ namespace Appkit {
 		      options.headers.Authentication = token;
 		    }
 
-			return Promise.resolve($.ajax(options));
+			return Promise.resolve(reqwest(options));
 		}
 
 		method(name: string, data:any): Promise<any> {

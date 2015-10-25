@@ -1,6 +1,3 @@
-
-;(function(scope) {
-
 var Appkit;
 (function (Appkit) {
     function deferredPromise() {
@@ -540,6 +537,7 @@ var Appkit;
     })();
     Appkit.FallbackClient = FallbackClient;
 })(Appkit || (Appkit = {}));
+/// <reference path="../../typings/reqwest.d.ts" />
 var Appkit;
 (function (Appkit) {
     var RestClient = (function () {
@@ -573,11 +571,12 @@ var Appkit;
             return Promise.resolve();
         };
         RestClient.prototype._ajax = function (options) {
-            options = _.assign({
+            options = _.defaults(options || {}, {
                 method: "POST",
                 contentType: "application/json",
-                dataType: "json",
-            }, options || {});
+                type: "json",
+                headers: {},
+            });
             if (!options.url) {
                 throw new Error("No url specified");
             }
@@ -593,7 +592,7 @@ var Appkit;
                 options.headers = options.headers || {};
                 options.headers.Authentication = token;
             }
-            return Promise.resolve($.ajax(options));
+            return Promise.resolve(reqwest(options));
         };
         RestClient.prototype.method = function (name, data) {
             data = data || {};
@@ -699,16 +698,3 @@ var Appkit;
     })();
     Appkit.JsonApiSerializer = JsonApiSerializer;
 })(Appkit || (Appkit = {}));
-
-
-
-	// Export global Appkit if window is available.
-	if (typeof scope.window !== "undefined" && scope.window) {
-		scope.window.appkit = Appkit;
-	}
-
-	if (typeof scope.module !== "undefined" && scope.module && !scope.module.nodeType) {
-		scope.module.exports = Appkit;
-	}
-
-}(this));

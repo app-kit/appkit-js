@@ -23,10 +23,11 @@
     "typings"
   ],
   "dependencies": {
-    "jquery": "~2.1.4",
     "bluebird": "~2.10.2",
     "basil.js": "~0.4.3",
     "lodash": "~3.10.1",
-    "autobahnjs": "autobahn#~0.9.8"
+    "autobahnjs": "autobahn#~0.9.8",
+    "qwest": "~2.2.0",
+    "reqwest": "~2.0.5"
   }
 }

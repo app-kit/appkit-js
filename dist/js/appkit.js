@@ -1,3 +1,6 @@
+
+;(function(scope) {
+
 var Appkit;
 (function (Appkit) {
     function deferredPromise() {
@@ -696,3 +699,16 @@ var Appkit;
     })();
     Appkit.JsonApiSerializer = JsonApiSerializer;
 })(Appkit || (Appkit = {}));
+
+
+
+	// Export global Appkit if window is available.
+	if (typeof scope.window !== "undefined" && scope.window) {
+		scope.window.appkit = Appkit;
+	}
+
+	if (typeof scope.module !== "undefined" && scope.module && !scope.module.nodeType) {
+		scope.module.exports = Appkit;
+	}
+
+}(this));

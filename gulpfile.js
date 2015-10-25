@@ -3,6 +3,8 @@ var ts = require('gulp-typescript');
 var merge = require('merge2');
 var uglify = require('gulp-uglify');
 var runSequence = require('run-sequence');
+var wrap = require("gulp-wrap");
+var rename = require("gulp-rename");
  
 var tsProject = ts.createProject('lib/tsconfig.json');
 
@@ -16,14 +18,20 @@ gulp.task('scripts', function() {
     ]);
 });
 
-gulp.task('minify', function() {
-	return gulp.src('dist/js/appkit.js')
-		.pipe(uglify())
-		.pipe(gulp.dest('dist/js'));
+gulp.task("wrap", ["scripts"], function() {
+     return gulp.src('dist/js/appkit.js')
+        .pipe(wrap({ src: 'lib/module_wrapper.js'}))
+        .pipe(gulp.dest('dist/js'));
 });
 
-gulp.task("dist", function(callback) {
-	return runSequence("scripts", "minify", callback);
+gulp.task('minify', ["wrap"], function() {
+    return gulp.src('dist/js/appkit.js')
+        .pipe(uglify())
+        .pipe(rename({suffix: ".min"}))
+        .pipe(gulp.dest('dist/js'));
+});
+
+gulp.task("dist", ["minify"], function(callback) {
 });
 
 gulp.task('watch', ['scripts'], function() {

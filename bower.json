@@ -7,7 +7,8 @@
   "description": "Javascript client library for the Appkit application framework.",
   "main": "dist/appkit.js",
   "moduleType": [
-    "es6"
+    "es6",
+    "globals"
   ],
   "keywords": [
     "appkit"

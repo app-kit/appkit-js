@@ -1,0 +1,11 @@
+{
+    "compilerOptions": {
+        "module": "amd",
+        "noImplicitAny": true,
+        "outFile": "appkit.js",
+        "target": "ES5",
+        "sourceMap": true
+    },
+    "exclude": [
+    ]
+}

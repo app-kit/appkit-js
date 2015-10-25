@@ -1,0 +1,29 @@
+{
+  "name": "appkit.js",
+  "version": "0.0.1",
+  "description": "Javascript client library for the Appkit application framework.",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/app-kit/appkit.js.git"
+  },
+  "author": "Christoph Herzog",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/app-kit/appkit.js/issues"
+  },
+  "homepage": "https://github.com/app-kit/appkit.js#readme",
+  "devDependencies": {
+    "gulp": "^3.9.0",
+    "gulp-typescript": "^2.9.2",
+    "gulp-uglify": "^1.4.2",
+    "merge2": "^0.3.6",
+    "run-sequence": "^1.1.4"
+  }
+}

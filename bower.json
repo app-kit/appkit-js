@@ -1,0 +1,31 @@
+{
+  "name": "appkit",
+  "homepage": "https://github.com/app-kit/appkit.js",
+  "authors": [
+    "Christoph Herzog <chris@theduke.at>"
+  ],
+  "description": "Javascript client library for the Appkit application framework.",
+  "main": "dist/appkit.js",
+  "moduleType": [
+    "es6"
+  ],
+  "keywords": [
+    "appkit"
+  ],
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests",
+    "typings"
+  ],
+  "dependencies": {
+    "jquery": "~2.1.4",
+    "bluebird": "~2.10.2",
+    "basil.js": "~0.4.3",
+    "lodash": "~3.10.1",
+    "autobahnjs": "autobahn#~0.9.8"
+  }
+}

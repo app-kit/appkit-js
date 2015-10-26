@@ -8,27 +8,28 @@ namespace Appkit {
 		message: string;
 	}
 
-	export interface Response {
+	export interface TransferData {
 		// Main models of the response.
-		models: any[];
+		models?: any[];
 
 		// Extra models included in the response.
-		extraModels: any[];
+		extraModels?: any[];
 
 		// Metadata.
-		meta: Dictionary;
+		meta?: Dictionary;
 
 		// Generic data for non-model responses.
-		data?: Dictionary;
+		data?: any;
 
 		// Errors.
 		errors?: Error[]
 
 		// A map mapping model collection to an array of the included models.
-		modelMap: ModelMap;
+		modelMap?: ModelMap;
 	}
 
 	export interface Serializer {
-		UnserializeResponse(data:any): Response;
+		SerializeTransferData(data: TransferData): any;
+		UnserializeTransferData(data: any): TransferData;
 	}
 }

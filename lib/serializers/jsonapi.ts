@@ -65,8 +65,37 @@ namespace Appkit {
 
 
 	export class JsonApiSerializer implements Serializer {
-		UnserializeResponse(data:any): Response	{
-			let response: Response = {
+
+		SerializeTransferData(data: TransferData): any {
+			let serialized: any = {};
+
+
+			if (data.models) {
+				if (data.data) {
+					throw new Error("Serialize error: invalid TransferData: Can't supply data when models are supplied");
+				}
+
+				serialized.data = data.models.length == 1 ? data.models[0] : data.models;
+			} else if (data.data) {
+				serialized.data = data.data;
+			}
+
+			if (data.extraModels) {
+				serialized.included = data.extraModels;
+			}
+
+			if (data.meta) {
+				serialized.meta = data.meta;
+			}
+
+			if (data.errors) {
+				serialized.errors = data.errors;
+			}
+			return serialized;
+		}
+
+		UnserializeTransferData(serialized: any): TransferData {
+			let data: TransferData = {
 				models: [],
 				extraModels: [],
 				meta: {},
@@ -75,41 +104,42 @@ namespace Appkit {
 				modelMap: {},
 			};
 
-			if (data.meta) {
-				response.meta = data.meta;
+			if (serialized.meta) {
+				data.meta = serialized.meta;
 			}
-			if (data.data) {
-				let d = data.data;
+			if (serialized.data) {
+				let d = serialized.data;
 				if ((Array.isArray(d) && d[0].type) || typeof d === "object" && d.type) {
-					response.models = unserializeJsonApiModels(d);
+					data.models = unserializeJsonApiModels(d);
 				} else {
-					response.data = d;
+					data.data = d;
 				}
 			}
-			if (data.included) {
-				response.extraModels = unserializeJsonApiModels(data.included);
+			if (serialized.included) {
+				data.extraModels = unserializeJsonApiModels(serialized.included);
 			}
-			if (data.errors) {
-				response.errors = data.errors;
+			if (serialized.errors) {
+				data.errors = serialized.errors;
 			}
 
 			// Build model map.
 			let map: ModelMap = {};
-			_.forEach(response.models, function(model:JsonApiModel) {
+			_.forEach(data.models, function(model:JsonApiModel) {
 				if (!(model.type in map)) {
 					map[model.type] = [];
 				}
 				map[model.type].push(model);
 			});
-			_.forEach(response.extraModels, function(model:JsonApiModel) {
+			_.forEach(data.extraModels, function(model:JsonApiModel) {
 				if (!(model.type in map)) {
 					map[model.type] = [];
 				}
 				map[model.type].push(model);
 			});
-			response.modelMap = map;
+			data.modelMap = map;
 
-			return response;
+			return data;
 		}
+
 	}
 }

@@ -31,9 +31,15 @@ declare module reqwest {
 		catch(fn: Callback): void;	
 	}
 
-	export function reqwest(options: Options): Reqwest;
+	export interface ReqwestStatic {
+		(options: Options): Reqwest;
+	}
+
+	//export function reqwest(options: Options): Reqwest;
+
+	export var reqwest: (options: Options) => Reqwest;
 }
 
 declare module "reqwest" {
-	export = reqwest.reqwest;
+	export = reqwest;
 }

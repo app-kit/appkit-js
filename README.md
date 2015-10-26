@@ -36,12 +36,12 @@ kit.create({
 
 [Changelog](https://github.com/app-kit/appkit.js/blob/master/CHANGELOG.md)
 
+
 ### Dependencies
 
-* [Bluebird](https://github.com/petkaantonov/bluebird): Efficient promises library
-* [Lodash](https://github.com/lodash/lodash)
-* [Basil.js](https://github.com/Wisembly/basil.js): Session persistance
-
+* [Bluebird](https://github.com/petkaantonov/bluebird): Efficient promises library.
+* [Lodash](https://github.com/lodash/lodash): Utilities.
+* [Basil.js](https://github.com/Wisembly/basil.js): Session persistance.
 * [Autobahn.js](https://github.com/crossbario/autobahn-js): Optional, for WAMP client.
 * [Reqwest](https://github.com/ded/reqwest): Optional, for REST client.
 

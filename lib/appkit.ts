@@ -10,6 +10,7 @@
 
 /// <reference path="common.ts" />
 /// <reference path="events.ts" />
+/// <reference path="stores/store.ts" />
 
 namespace Appkit {
 
@@ -17,6 +18,8 @@ namespace Appkit {
 		apiHost: string;
 		apiUseSsl: boolean;
 		apiPrefix: string;
+
+		debug?: boolean;
 
 		clients: Dictionary;
 		storage: basil.BasilOptions;
@@ -27,7 +30,9 @@ namespace Appkit {
 	}
 
 	export class Appkit implements EventHandler {
+		private _debug: boolean;
 		private _serializers: SerializerMap;
+		private _defaultSerializer: string;
 		private _options: AppkitOptions;
 		private _storage: basil.Basil;
 		private _client: Client;
@@ -37,6 +42,8 @@ namespace Appkit {
 			this._serializers = {
 				jsonapi: new JsonApiSerializer(),
 			};
+
+			this._buildSerializers();
 
 			this._initOptions(options);
 			this._initStorage();
@@ -58,12 +65,20 @@ namespace Appkit {
 		on: (eventName: string, callback: Callback) => void;
 		trigger: (eventName: string, ...args:any[]) => void;
 
+		private _buildSerializers() {
+			this._serializers["jsonapi"] = new JsonApiSerializer();
+			this._defaultSerializer = "jsonapi"
+		}
+
 		private _initOptions(options: AppkitOptions) {
-			let opts:any = _.defaults(options || {}, {
+			let opts: any = _.defaults(options || {}, {
+				debug: false,
 				apiHost: "localhost:8000",
 				apiUseSsl: false,
 				apiPrefix: "/api",
 			});
+
+			this._debug = opts.debug;
 
 			opts = _.defaultsDeep(opts, {
 				storage: {
@@ -155,16 +170,93 @@ namespace Appkit {
 		 * Methods.
 		 */
 
-		method(name: string, data:any): Promise<any> {
-			return this._client.method(name, data);
+		method(name: string, data: TransferData, serializerName?: string): Promise<any> {
+			let serializer: Serializer = null;
+
+			let serializedData: any = data;
+
+			if (typeof serializerName !== "undefined" && !serializerName) {
+				// If a falsy value was passed for serializer, skip serialization.
+			} else {
+				let name = serializerName || this._defaultSerializer;
+				serializer = this.serializer(name);	
+				if (!serializer) {
+					throw new Error("Unknown serializer: " + serializer);
+				}
+				serializedData = serializer.SerializeTransferData(data);
+			}
+
+			if (this._debug) {
+				console.log(`APPKIT: Calling method ${name} with data: `, serializedData);
+			}
+
+			return this._client.method(name, serializedData).then((data: any) => {
+				if (serializer) {
+					data = serializer.UnserializeTransferData(data);
+				}
+
+				if (this._debug) {
+					console.log(`APPKIT: Received response for method ${name}: `, data);
+				}
+				return Promise.resolve(data);
+			}).catch((err: any) => {
+				if (this._debug) {
+					console.log(`APPKIT: Method ${name} failed: `, err);
+				}
+				return Promise.reject(err);
+			});
 		}
 
 		/**
 		 * User / session methods.
 		 */
 
+		signUp(user: any, authOptions: AuthOptions): Promise<any> {
+			return this.create(user, authOptions);
+		}
+
+		signUpWithPassword(email: string, password: string, username?: string): Promise<any> {
+			let attrs: Dictionary = {email: email};
+			if (username) {
+				attrs["username"] = username;
+			}
+			return this.signUp({
+				type: "users",
+				attributes: attrs
+			}, {
+				adaptor: "password",
+				authData: {
+					password: password,
+				},
+			});
+		}
+
+		signUpWithOauth(oauthService: string, token: string, userAttributes: Dictionary): Promise<any> {
+			return this.signUp({
+				type: "users",
+				attributes: userAttributes,
+			}, {
+				adaptor: "oauth",
+				authData: {
+					service: oauthService,
+					access_token: token,
+				},
+			});	
+		}
+
+		requestPasswordReset(userIdentifier: string) {
+			return this.method("users.request-password-reset", {data: {user: userIdentifier}});	
+		}
+
+		resetPassword(token: string, newPassword: string) {
+			return this.method("users.password-reset", {data: {
+				token: token, 
+				password: newPassword,
+			}});
+		}
+
 		authenticate(options: AuthOptions): Promise<any> {
-			return this.method("users.authenticate", options).then(response => {
+			return this.method("users.authenticate", {data: options}).then(response => {
 				this._onSessionData(response);
 				return Promise.resolve(response);
 			});
@@ -178,18 +270,28 @@ namespace Appkit {
 			});
 		}
 
+		authenticateWithOauth(oauthService: string, token: string): Promise<any> {
+			return this.authenticate({
+				adaptor: "oauth",
+				authData: {
+					service: oauthService,
+					access_token: token,
+				},
+			});
+		}
+
 		unauthenticate() {
 			if (!this.isAuthenticated()) {
 				throw new Error("Can't unauthenticate when not authenticated.");
 			}
-			return this.method("users.unauthenticate", {}).then(data => {
+			return this.method("users.unauthenticate", {}).then((data:any) => {
 				this._onSessionData(null);
 				return Promise.resolve(data);
 			});
 		}
 
 		resumeSession(token:string): Promise<any> {
-			return this.method("users.resume_session", {token: token}).then(response => {
+			return this.method("users.resume_session", {data: {token}}).then((response:TransferData) => {
 				this._onSessionData(response);
 				return Promise.resolve(response);
 			});
@@ -215,34 +317,50 @@ namespace Appkit {
 		 * CRUD methods.
 		 */
 
+		findOne(collection: string, id: string): Promise<any> {
+			return this.method("find_one", {
+				data: {collection, id},
+			}, null);
+		}
+
 		query(collection?:string, query?:Query): Promise<any> {
 			query = query || <Query> {};
 			if (collection) {
 				query.collection = collection;
 			}
 
-			return this.method("query", {query});
+			return this.method("query", {data: {query}}, null);
 		}
 
 		create(data: any, meta:Dictionary = {}): Promise<any> {
-			return this.method("create", {data, meta})
+			return this.method("create", {models: [data], meta}, null);
 		}
 
 		update(data: any, meta:Dictionary = {}): Promise<any> {
-			return this.method("update", {data, meta});
+			return this.method("update", {models: [data], meta}, null);
 		}
 
 		delete(data: any, meta:Dictionary = {}): Promise<any> {
-			return this.method("delete", {data, meta});
+			let collection: string, id: string;
+
+			if (data.collection && data.id) {
+				collection = data.collection;
+				id = data.id;
+			} else if (data.type && data.id) {
+				collection = data.type;
+				id = data.id;
+			} else if (data.getId && data.getCollection) {
+				// Model instance!.
+				collection = data.getCollection();
+				id = data.getId();
+			}
+
+			if (!collection || typeof collection !== "string" || !id || typeof id !== "string") {
+				throw new Error("Could not determine collection or id");
+			}
+
+			return this.method("delete", {data: {collection, id}, meta}, null);
 		}
 	}
 	applyMixins(Appkit, [EventHandlerMixin]);
-
-	interface Query {
-		collection?: string;
-		fields: string[];
-		filters: any;
-		joins: string[];
-		orders: string[];
-	}
 }

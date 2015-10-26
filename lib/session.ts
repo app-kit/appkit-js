@@ -42,23 +42,9 @@ namespace Appkit {
 			this._userData = null;
 		}
 
-		updateWithResponse(appkit:Appkit, data:any) {
-			let format = data.meta && data.meta.format ? data.meta.format : null;
-
-
-			if (!format) {
-				console.log("Update session error: ", data);
-				throw new Error("Unknown data format");
-			}
-
-			let serializer = appkit.serializer(format);
-			if (!serializer) {
-				throw new Error("No serializer for format: " + format);
-			}
-
-			let apiData = serializer.UnserializeResponse(data);
-			let map = apiData.modelMap;	
-			if (!("sessions" in map) || !map["sessions"].length) {
+		updateWithResponse(appkit:Appkit, data:TransferData) {
+			let map = data.modelMap;	
+			if (!map || !("sessions" in map) || !map["sessions"].length) {
 				throw new Error("No session in response");
 			}
 

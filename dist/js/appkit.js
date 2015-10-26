@@ -31,6 +31,7 @@ var Appkit;
     var EventHandlerMixin = (function () {
         function EventHandlerMixin() {
             this._events = {};
+            this._events = {};
         }
         EventHandlerMixin.prototype.registerEvent = function (name) {
             this._events[name] = [];
@@ -39,7 +40,7 @@ var Appkit;
             if (!(eventName in this._events)) {
                 throw new Error("Unknown event: " + eventName);
             }
-            this._events[name].push(callback);
+            this._events[eventName].push(callback);
         };
         EventHandlerMixin.prototype.trigger = function (eventName) {
             var args = [];
@@ -67,6 +68,7 @@ var Appkit;
 /// <reference path="../typings/basil.js.d.ts" />
 /// <reference path="common.ts" />
 /// <reference path="events.ts" />
+/// <reference path="stores/store.ts" />
 var Appkit;
 (function (Appkit_1) {
     var Appkit = (function () {
@@ -81,6 +83,7 @@ var Appkit;
             this._serializers = {
                 jsonapi: new Appkit_1.JsonApiSerializer(),
             };
+            this._buildSerializers();
             this._initOptions(options);
             this._initStorage();
             this._buildSession();
@@ -89,12 +92,18 @@ var Appkit;
                 _this._restoreSession();
             });
         }
+        Appkit.prototype._buildSerializers = function () {
+            this._serializers["jsonapi"] = new Appkit_1.JsonApiSerializer();
+            this._defaultSerializer = "jsonapi";
+        };
         Appkit.prototype._initOptions = function (options) {
             var opts = _.defaults(options || {}, {
+                debug: false,
                 apiHost: "localhost:8000",
                 apiUseSsl: false,
                 apiPrefix: "/api",
             });
+            this._debug = opts.debug;
             opts = _.defaultsDeep(opts, {
                 storage: {
                     "namespace": "appkit",
@@ -166,15 +175,83 @@ var Appkit;
         /**
          * Methods.
          */
-        Appkit.prototype.method = function (name, data) {
-            return this._client.method(name, data);
+        Appkit.prototype.method = function (name, data, serializerName) {
+            var _this = this;
+            var serializer = null;
+            var serializedData = data;
+            if (typeof serializerName !== "undefined" && !serializerName) {
+            }
+            else {
+                var name_1 = serializerName || this._defaultSerializer;
+                serializer = this.serializer(name_1);
+                if (!serializer) {
+                    throw new Error("Unknown serializer: " + serializer);
+                }
+                serializedData = serializer.SerializeTransferData(data);
+            }
+            if (this._debug) {
+                console.log("APPKIT: Calling method " + name + " with data: ", serializedData);
+            }
+            return this._client.method(name, serializedData).then(function (data) {
+                if (serializer) {
+                    data = serializer.UnserializeTransferData(data);
+                }
+                if (_this._debug) {
+                    console.log("APPKIT: Received response for method " + name + ": ", data);
+                }
+                return Promise.resolve(data);
+            }).catch(function (err) {
+                if (_this._debug) {
+                    console.log("APPKIT: Method " + name + " failed: ", err);
+                }
+                return Promise.reject(err);
+            });
         };
         /**
          * User / session methods.
          */
+        Appkit.prototype.signUp = function (user, authOptions) {
+            return this.create(user, authOptions);
+        };
+        Appkit.prototype.signUpWithPassword = function (email, password, username) {
+            var attrs = { email: email };
+            if (username) {
+                attrs["username"] = username;
+            }
+            return this.signUp({
+                type: "users",
+                attributes: attrs
+            }, {
+                adaptor: "password",
+                authData: {
+                    password: password,
+                },
+            });
+        };
+        Appkit.prototype.signUpWithOauth = function (oauthService, token, userAttributes) {
+            return this.signUp({
+                type: "users",
+                attributes: userAttributes,
+            }, {
+                adaptor: "oauth",
+                authData: {
+                    service: oauthService,
+                    access_token: token,
+                },
+            });
+        };
+        Appkit.prototype.requestPasswordReset = function (userIdentifier) {
+            return this.method("users.request-password-reset", { data: { user: userIdentifier } });
+        };
+        Appkit.prototype.resetPassword = function (token, newPassword) {
+            return this.method("users.password-reset", { data: {
+                    token: token,
+                    password: newPassword,
+                } });
+        };
         Appkit.prototype.authenticate = function (options) {
             var _this = this;
-            return this.method("users.authenticate", options).then(function (response) {
+            return this.method("users.authenticate", { data: options }).then(function (response) {
                 _this._onSessionData(response);
                 return Promise.resolve(response);
             });
@@ -184,6 +261,15 @@ var Appkit;
                 user: user,
                 adaptor: "password",
                 authData: { password: pw },
+            });
+        };
+        Appkit.prototype.authenticateWithOauth = function (oauthService, token) {
+            return this.authenticate({
+                adaptor: "oauth",
+                authData: {
+                    service: oauthService,
+                    access_token: token,
+                },
             });
         };
         Appkit.prototype.unauthenticate = function () {
@@ -198,7 +284,7 @@ var Appkit;
         };
         Appkit.prototype.resumeSession = function (token) {
             var _this = this;
-            return this.method("users.resume_session", { token: token }).then(function (response) {
+            return this.method("users.resume_session", { data: { token: token } }).then(function (response) {
                 _this._onSessionData(response);
                 return Promise.resolve(response);
             });
@@ -221,24 +307,46 @@ var Appkit;
         /**
          * CRUD methods.
          */
+        Appkit.prototype.findOne = function (collection, id) {
+            return this.method("find_one", {
+                data: { collection: collection, id: id },
+            }, null);
+        };
         Appkit.prototype.query = function (collection, query) {
             query = query || {};
             if (collection) {
                 query.collection = collection;
             }
-            return this.method("query", { query: query });
+            return this.method("query", { data: { query: query } }, null);
         };
         Appkit.prototype.create = function (data, meta) {
             if (meta === void 0) { meta = {}; }
-            return this.method("create", { data: data, meta: meta });
+            return this.method("create", { models: [data], meta: meta }, null);
         };
         Appkit.prototype.update = function (data, meta) {
             if (meta === void 0) { meta = {}; }
-            return this.method("update", { data: data, meta: meta });
+            return this.method("update", { models: [data], meta: meta }, null);
         };
         Appkit.prototype.delete = function (data, meta) {
             if (meta === void 0) { meta = {}; }
-            return this.method("delete", { data: data, meta: meta });
+            var collection, id;
+            if (data.collection && data.id) {
+                collection = data.collection;
+                id = data.id;
+            }
+            else if (data.type && data.id) {
+                collection = data.type;
+                id = data.id;
+            }
+            else if (data.getId && data.getCollection) {
+                // Model instance!.
+                collection = data.getCollection();
+                id = data.getId();
+            }
+            if (!collection || typeof collection !== "string" || !id || typeof id !== "string") {
+                throw new Error("Could not determine collection or id");
+            }
+            return this.method("delete", { data: { collection: collection, id: id }, meta: meta }, null);
         };
         return Appkit;
     })();
@@ -288,18 +396,8 @@ var Appkit;
             this._userData = null;
         };
         Session.prototype.updateWithResponse = function (appkit, data) {
-            var format = data.meta && data.meta.format ? data.meta.format : null;
-            if (!format) {
-                console.log("Update session error: ", data);
-                throw new Error("Unknown data format");
-            }
-            var serializer = appkit.serializer(format);
-            if (!serializer) {
-                throw new Error("No serializer for format: " + format);
-            }
-            var apiData = serializer.UnserializeResponse(data);
-            var map = apiData.modelMap;
-            if (!("sessions" in map) || !map["sessions"].length) {
+            var map = data.modelMap;
+            if (!map || !("sessions" in map) || !map["sessions"].length) {
                 throw new Error("No session in response");
             }
             this._data = map["sessions"][0];
@@ -413,7 +511,6 @@ var Appkit;
             if (!("data" in data)) {
                 data = { data: data };
             }
-            console.log("APPKIT: Calling autobahn method: ", name);
             return Promise.resolve(this._autobahnSession.call(name, [], data)).then(function (data) {
                 data = data.kwargs;
                 if (data.errors && data.errors.length) {
@@ -651,48 +748,70 @@ var Appkit;
     var JsonApiSerializer = (function () {
         function JsonApiSerializer() {
         }
-        JsonApiSerializer.prototype.UnserializeResponse = function (data) {
-            var response = {
+        JsonApiSerializer.prototype.SerializeTransferData = function (data) {
+            var serialized = {};
+            if (data.models) {
+                if (data.data) {
+                    throw new Error("Serialize error: invalid TransferData: Can't supply data when models are supplied");
+                }
+                serialized.data = data.models.length == 1 ? data.models[0] : data.models;
+            }
+            else if (data.data) {
+                serialized.data = data.data;
+            }
+            if (data.extraModels) {
+                serialized.included = data.extraModels;
+            }
+            if (data.meta) {
+                serialized.meta = data.meta;
+            }
+            if (data.errors) {
+                serialized.errors = data.errors;
+            }
+            return serialized;
+        };
+        JsonApiSerializer.prototype.UnserializeTransferData = function (serialized) {
+            var data = {
                 models: [],
                 extraModels: [],
                 meta: {},
                 errors: null,
                 modelMap: {},
             };
-            if (data.meta) {
-                response.meta = data.meta;
+            if (serialized.meta) {
+                data.meta = serialized.meta;
             }
-            if (data.data) {
-                var d = data.data;
+            if (serialized.data) {
+                var d = serialized.data;
                 if ((Array.isArray(d) && d[0].type) || typeof d === "object" && d.type) {
-                    response.models = unserializeJsonApiModels(d);
+                    data.models = unserializeJsonApiModels(d);
                 }
                 else {
-                    response.data = d;
+                    data.data = d;
                 }
             }
-            if (data.included) {
-                response.extraModels = unserializeJsonApiModels(data.included);
+            if (serialized.included) {
+                data.extraModels = unserializeJsonApiModels(serialized.included);
             }
-            if (data.errors) {
-                response.errors = data.errors;
+            if (serialized.errors) {
+                data.errors = serialized.errors;
             }
             // Build model map.
             var map = {};
-            _.forEach(response.models, function (model) {
+            _.forEach(data.models, function (model) {
                 if (!(model.type in map)) {
                     map[model.type] = [];
                 }
                 map[model.type].push(model);
             });
-            _.forEach(response.extraModels, function (model) {
+            _.forEach(data.extraModels, function (model) {
                 if (!(model.type in map)) {
                     map[model.type] = [];
                 }
                 map[model.type].push(model);
             });
-            response.modelMap = map;
-            return response;
+            data.modelMap = map;
+            return data;
         };
         return JsonApiSerializer;
     })();

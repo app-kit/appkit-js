@@ -14,7 +14,7 @@ namespace Appkit {
 	}
 
 	export class EventHandlerMixin implements EventHandler {
-		private _events: EventMap;
+		private _events: EventMap = {};
 
 		constructor() {
 			this._events = {};
@@ -29,7 +29,7 @@ namespace Appkit {
 				throw new Error("Unknown event: " + eventName);
 			}
 
-			this._events[name].push(callback);
+			this._events[eventName].push(callback);
 		}
 
 		trigger(eventName: string, ...args:any[]) {
